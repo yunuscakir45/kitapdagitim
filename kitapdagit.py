@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import random
 import os
+import pandas as pd
 
 DATA_FILE = "kitap_dagitim_veri.json"
 
@@ -29,7 +30,6 @@ ogrenciler = veri["ogrenciler"]
 kitaplar = veri["kitaplar"]
 kayitlar = veri["kayitlar"]
 
-# --- Yardımcı Fonksiyonlar ---
 def kaydet():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(veri, f, ensure_ascii=False, indent=2)
@@ -39,11 +39,12 @@ st.caption("Haftalık dönüşümlü kitap takibi, öğrenci ve kitap yönetimi 
 
 # --- Öğrenci ve Kitap Yönetimi ---
 st.sidebar.header("⚙️ Yönetim Paneli")
-
 secim = st.sidebar.radio("Yönetim Seçeneği:", ["Öğrenciler", "Kitaplar", "Dağıtım İşlemleri"])
 
+# --- Öğrenci Yönetimi ---
 if secim == "Öğrenciler":
     st.sidebar.subheader("👩‍🎓 Öğrenci Yönetimi")
+    
     yeni_ogr = st.sidebar.text_input("Yeni öğrenci ekle:")
     if st.sidebar.button("Ekle") and yeni_ogr.strip():
         if yeni_ogr not in ogrenciler:
@@ -72,8 +73,10 @@ if secim == "Öğrenciler":
         st.sidebar.success(f"{degistirilecek} → {yeni_isim}")
         st.experimental_rerun()
 
+# --- Kitap Yönetimi ---
 elif secim == "Kitaplar":
     st.sidebar.subheader("📘 Kitap Yönetimi")
+    
     yeni_kitap = st.sidebar.text_input("Yeni kitap ekle:")
     if st.sidebar.button("Kitap Ekle") and yeni_kitap.strip():
         if yeni_kitap not in kitaplar:
@@ -87,6 +90,9 @@ elif secim == "Kitaplar":
     sil_kitap = st.sidebar.selectbox("Silinecek kitap:", ["(Seç)"] + kitaplar)
     if sil_kitap != "(Seç)" and st.sidebar.button("Kitap Sil"):
         kitaplar.remove(sil_kitap)
+        # Geçmişten de sil
+        for ogr in kayitlar:
+            kayitlar[ogr] = [k for k in kayitlar[ogr] if k != sil_kitap]
         kaydet()
         st.sidebar.success(f"{sil_kitap} silindi.")
         st.experimental_rerun()
@@ -94,21 +100,23 @@ elif secim == "Kitaplar":
     degistir_kitap = st.sidebar.selectbox("İsim değiştir:", ["(Seç)"] + kitaplar)
     yeni_ad = st.sidebar.text_input("Yeni kitap adı:")
     if st.sidebar.button("Adı Değiştir") and degistir_kitap != "(Seç)" and yeni_ad.strip():
+        for ogr in kayitlar:
+            kayitlar[ogr] = [yeni_ad if k == degistir_kitap else k for k in kayitlar[ogr]]
         kitaplar[kitaplar.index(degistir_kitap)] = yeni_ad
         kaydet()
         st.sidebar.success(f"{degistir_kitap} → {yeni_ad}")
         st.experimental_rerun()
 
+# --- Dağıtım İşlemleri ---
 elif secim == "Dağıtım İşlemleri":
     st.header("📅 Haftalık Kitap Dağıtımı")
 
     yok_ogrenciler = st.multiselect("Bu hafta gelmeyen öğrenciler:", ogrenciler)
     getirmeyenler = st.multiselect("Kitabını getirmeyen öğrenciler:", [o for o in ogrenciler if o not in yok_ogrenciler])
-
     aktif_ogrenciler = [o for o in ogrenciler if o not in yok_ogrenciler + getirmeyenler]
 
-    max_hafta = len(ogrenciler)
-    hafta = min(max(len(kayitlar[o]) for o in aktif_ogrenciler) + 1, max_hafta)
+    # Hafta numarasını 1'den başlat
+    hafta = 1 + max((len(kayitlar[o]) for o in aktif_ogrenciler), default=0)
 
     st.subheader(f"📖 {hafta}. Hafta Dağıtımı ({len(kitaplar)} kitap / {len(ogrenciler)} öğrenci)")
 
@@ -117,14 +125,14 @@ elif secim == "Dağıtım İşlemleri":
 
     with col1:
         dagitim_buton = st.button("📚 Dağıtımı Yap")
-
     with col2:
         geri_al_buton = st.button("↩ Geri Al")
 
     if dagitim_buton:
         mevcut_kitaplar = kitaplar[:]
         random.shuffle(mevcut_kitaplar)
-
+        # Öğrencileri en az kitap alandan başlat
+        aktif_ogrenciler.sort(key=lambda o: len(kayitlar[o]))
         for ogr in aktif_ogrenciler:
             oncekiler = kayitlar[ogr]
             alinabilir = [k for k in mevcut_kitaplar if k not in oncekiler]
@@ -136,10 +144,9 @@ elif secim == "Dağıtım İşlemleri":
             mevcut_kitaplar.remove(secilen)
 
         haftalik_dagitim = dict(sorted(haftalik_dagitim.items()))
-
         kaydet()
         st.success("✅ Dağıtım tamamlandı!")
-        st.table(haftalik_dagitim.items())
+        st.table(pd.DataFrame(list(haftalik_dagitim.items()), columns=["Kitap", "Öğrenci"]))
 
     if geri_al_buton:
         for ogr in aktif_ogrenciler:
@@ -151,8 +158,8 @@ elif secim == "Dağıtım İşlemleri":
 
     if st.button("📜 Geçmişi Görüntüle"):
         st.header("📘 Geçmiş Kitaplar")
-        for ogr, okunan in kayitlar.items():
-            st.write(f"**{ogr}** → {', '.join(okunan) if okunan else 'Henüz kitap almadı.'}")
+        gecmis = pd.DataFrame.from_dict(kayitlar, orient="index").transpose()
+        st.table(gecmis.fillna("-"))
 
     st.markdown("---")
     st.subheader("⚠️ Tüm Verileri Sıfırla")
