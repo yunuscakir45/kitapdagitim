@@ -54,8 +54,10 @@ if secim == "Öğrenciler":
     yeni_ogr = st.text_input("Yeni öğrenci ekle:")
     if st.button("Öğrenci Ekle") and yeni_ogr.strip():
         if yeni_ogr not in ogrenciler:
-            ogrenciler.append(yeni_ogr)
-            kayitlar[yeni_ogr] = []
+            # Doğrudan Session State listesini güncelle
+            st.session_state.veri["ogrenciler"].append(yeni_ogr)
+            st.session_state.veri["kayitlar"][yeni_ogr] = []
+            
             st.success(f"'{yeni_ogr}' eklendi.")
             st.experimental_rerun()
         else:
@@ -70,7 +72,9 @@ elif secim == "Kitaplar":
     yeni_kitap = st.text_input("Yeni kitap ekle (Örn: Kitap 35):")
     if st.button("Kitap Ekle") and yeni_kitap.strip():
         if yeni_kitap not in kitaplar:
-            kitaplar.append(yeni_kitap)
+            # Doğrudan Session State listesini güncelle
+            st.session_state.veri["kitaplar"].append(yeni_kitap)
+            
             st.success(f"'{yeni_kitap}' eklendi.")
             st.experimental_rerun()
         else:
@@ -86,7 +90,7 @@ elif secim == "Dağıtım İşlemleri":
         st.error(f"Öğrenci sayısı ({len(ogrenciler)}) ve Kitap sayısı ({len(kitaplar)}) eşit olmalıdır! Lütfen yönetim panelinden düzeltin.")
         st.stop()
 
-    # Hafta Numarasını Belirleme (En Uzun Öğrenci Kayıt Listesine Göre)
+    # Hafta Numarasını Belirleme
     max_alınan = max((len(kayitlar[o]) for o in ogrenciler), default=0)
     hafta = 1 + max_alınan 
     
@@ -118,7 +122,7 @@ elif secim == "Dağıtım İşlemleri":
         else:
             # --- 1. Kitap Havuzu Hazırlığı ---
             mevcut_kitaplar_havuzu = kitaplar[:] 
-            random.shuffle(mevcut_kitaplar_havuzu) # Kitapların dağıtım sırasını rastgele karıştır (SÜRPRİZ)
+            random.shuffle(mevcut_kitaplar_havuzu) # SÜRPRİZ DAĞITIM için karıştır
             
             haftalik_dagitim_sonucu = {}
             
@@ -138,11 +142,11 @@ elif secim == "Dağıtım İşlemleri":
 
             # --- 3. Aktif Öğrencilere Kitap Dağıtımı (Benzersiz ve Rastgele) ---
             
-            # Aktif öğrencileri en az kitap alandan başlat (Adil dağıtım önceliği)
+            # Aktif öğrencileri en az kitap alandan başlat
             aktif_ogrenciler.sort(key=lambda o: len(kayitlar[o]))
 
             for ogr in aktif_ogrenciler:
-                oncekiler = set([k for k in kayitlar[ogr] if k != "YOK" and k != "TAMAM"]) # Daha önce aldığı kitaplar
+                oncekiler = set([k for k in kayitlar[ogr] if k != "YOK" and k != "TAMAM"])
                 
                 # Bu öğrenciye atanabilecek, daha önce almadığı ve henüz dağıtılmamış kitapları bul
                 alinabilir = [k for k in mevcut_kitaplar_havuzu if k not in oncekiler]
@@ -156,8 +160,8 @@ elif secim == "Dağıtım İşlemleri":
                 secilen = random.choice(alinabilir)
                 
                 # Kayıtları güncelle
-                haftalik_dagitim_sonucu[secilen] = ogr
                 kayitlar[ogr].append(secilen)
+                haftalik_dagitim_sonucu[secilen] = ogr
                 mevcut_kitaplar_havuzu.remove(secilen) # Kitabı havuzdan çıkar (Benzersizlik garantisi)
 
             # --- 4. Sonuçları Göster (Kitap 1'den Başlayarak Sıralı Çıktı) ---
@@ -183,6 +187,7 @@ elif secim == "Dağıtım İşlemleri":
             st.success("✅ Dağıtım tamamlandı! Sonuçlar Kitap 1'den başlayarak sıralanmıştır.")
             st.dataframe(df_sonuc.set_index("Kitap")) 
 
+            # Hata veren satır buradaydı. Session State ile artık güvenli olmalı.
             st.experimental_rerun()
             
     if geri_al_buton:
