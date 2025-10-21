@@ -4,22 +4,14 @@ import random
 import os
 import pandas as pd
 
-# --- Dosya Sabiti ve Başlangıç Ayarları ---
-DATA_FILE = "kitap_dagitim_veri.json"
-MAX_KITAP_SAYISI = 34 # Başlangıçta 34 öğrenci/kitap varsayımı
+# --- Sabitler ---
+MAX_KITAP_SAYISI = 34 
 
-# --- Veri Yükleme ---
-# Bu blok, uygulamanın her başlangıcında veya yeniden çalışmasında (rerun) çalışır
-if os.path.exists(DATA_FILE):
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            veri = json.load(f)
-    except json.JSONDecodeError:
-        st.error("Veri dosyası (JSON) bozuk. Lütfen dosyayı silin ve tekrar deneyin.")
-        st.stop()
-else:
-    # Başlangıç verisi (JSON dosyası yoksa)
-    veri = {
+# --- Veri Yükleme ve Başlangıç Ayarları (SESSION STATE KULLANIMI) ---
+
+# Veri setini sadece bir kez, oturum başladığında başlatır.
+if 'veri' not in st.session_state:
+    st.session_state.veri = {
         "ogrenciler": [
             "Ahmet Yılmaz", "Ayşe Demir", "Mehmet Korkmaz", "Elif Kaya", "Mustafa Çetin",
             "Zeynep Arslan", "Ali Koç", "Fatma Aydın", "Emre Şahin", "Hatice Doğan",
@@ -32,17 +24,19 @@ else:
         "kitaplar": [f"Kitap {i}" for i in range(1, MAX_KITAP_SAYISI + 1)],
         "kayitlar": {}
     }
-    veri["kayitlar"] = {ogr: [] for ogr in veri["ogrenciler"]}
+    # İlk kayıtları başlat
+    st.session_state.veri["kayitlar"] = {ogr: [] for ogr in st.session_state.veri["ogrenciler"]}
 
-# Veri setlerini global değişkenlere atama
+
+# Veri setlerini Session State'den çekme
+veri = st.session_state.veri
 ogrenciler = veri["ogrenciler"]
 kitaplar = veri["kitaplar"]
 kayitlar = veri["kayitlar"]
 
+# Session State kullandığımız için bu fonksiyon artık işlevsizdir
 def kaydet():
-    """Veriyi JSON dosyasına kaydeder."""
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(veri, f, ensure_ascii=False, indent=2)
+    pass 
 
 st.title("📚 Kitap Dağıtım Sistemi (Gelişmiş)")
 st.caption("Haftalık dönüşümlü kitap takibi, öğrenci ve kitap yönetimi dahil")
@@ -62,13 +56,11 @@ if secim == "Öğrenciler":
         if yeni_ogr not in ogrenciler:
             ogrenciler.append(yeni_ogr)
             kayitlar[yeni_ogr] = []
-            kaydet()
             st.success(f"'{yeni_ogr}' eklendi.")
             st.experimental_rerun()
         else:
             st.warning("Bu isim zaten listede.")
     st.markdown("---")
-    # Silme/Değiştirme kısımları kod fazlalığı olmaması için basitleştirilmiştir.
     
 # --- Kitap Yönetimi ---
 elif secim == "Kitaplar":
@@ -79,13 +71,11 @@ elif secim == "Kitaplar":
     if st.button("Kitap Ekle") and yeni_kitap.strip():
         if yeni_kitap not in kitaplar:
             kitaplar.append(yeni_kitap)
-            kaydet()
             st.success(f"'{yeni_kitap}' eklendi.")
             st.experimental_rerun()
         else:
             st.warning("Bu kitap zaten var.")
     st.markdown("---")
-    # Silme/Değiştirme kısımları basitleştirilmiştir.
 
 # --- Dağıtım İşlemleri (Ana Modül) ---
 elif secim == "Dağıtım İşlemleri":
@@ -152,7 +142,7 @@ elif secim == "Dağıtım İşlemleri":
             aktif_ogrenciler.sort(key=lambda o: len(kayitlar[o]))
 
             for ogr in aktif_ogrenciler:
-                oncekiler = set([k for k in kayitlar[ogr] if k != "YOK"]) # Daha önce aldığı kitaplar
+                oncekiler = set([k for k in kayitlar[ogr] if k != "YOK" and k != "TAMAM"]) # Daha önce aldığı kitaplar
                 
                 # Bu öğrenciye atanabilecek, daha önce almadığı ve henüz dağıtılmamış kitapları bul
                 alinabilir = [k for k in mevcut_kitaplar_havuzu if k not in oncekiler]
@@ -193,7 +183,6 @@ elif secim == "Dağıtım İşlemleri":
             st.success("✅ Dağıtım tamamlandı! Sonuçlar Kitap 1'den başlayarak sıralanmıştır.")
             st.dataframe(df_sonuc.set_index("Kitap")) 
 
-            kaydet()
             st.experimental_rerun()
             
     if geri_al_buton:
@@ -206,7 +195,6 @@ elif secim == "Dağıtım İşlemleri":
             for ogr in ogrenciler:
                 if len(kayitlar[ogr]) == silinecek_hafta:
                     kayitlar[ogr].pop() # Son kaydı sil
-            kaydet()
             st.warning(f"↩ {silinecek_hafta}. Haftadaki dağıtım geri alındı.")
             st.experimental_rerun()
 
@@ -226,25 +214,18 @@ elif secim == "Dağıtım İşlemleri":
         
     st.markdown("---")
     st.subheader("⚠️ Tüm Verileri Sıfırla")
-    st.warning("Bu işlem, tüm dağıtım kayıtlarını, öğrenci/kitap geçmişini ve veri dosyasını kalıcı olarak siler.")
+    st.warning("Bu işlem, hafızadaki (Session State) tüm dağıtım kayıtlarını kalıcı olarak siler.")
     
     col1, col2 = st.columns([1, 2])
     with col1:
-        sifirla_buton = st.button("🗑️ TÜM VERİYİ VE DOSYAYI SIFIRLA")
+        sifirla_buton = st.button("🗑️ TÜM KAYITLARI SIFIRLA")
     with col2:
         onay = st.checkbox("Emin misiniz? Bu işlem geri alınamaz!")
 
     if sifirla_buton and onay:
-        # JSON dosyasını silme işlemi
-        if os.path.exists(DATA_FILE):
-            try:
-                os.remove(DATA_FILE)
-                st.success(f"Tüm dağıtım kayıtları ve veri dosyası ('{DATA_FILE}') başarıyla silindi.")
-            except Exception as e:
-                st.error(f"Dosya silinirken bir hata oluştu: {e}")
-                
-        else:
-            st.warning(f"Veri dosyası ('{DATA_FILE}') zaten bulunamadı.")
-            
-        # Programı yeniden başlat (veri sıfırlanmış olarak tekrar yüklensin)
+        # Kayıt sözlüğünü boşaltıyoruz.
+        st.session_state.veri["kayitlar"] = {ogr: [] for ogr in st.session_state.veri["ogrenciler"]}
+        
+        st.success("Tüm dağıtım kayıtları sıfırlandı.")
+        # Programı yeniden başlat
         st.experimental_rerun()
