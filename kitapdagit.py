@@ -5,7 +5,7 @@ import os
 import pandas as pd
 
 # --- Sabitler ---
-MAX_KITAP_SAYISI = 34 
+MAX_KITAP_SAYISI = 34
 
 # --- Veri Yükleme ve Başlangıç Ayarları (SESSION STATE KULLANIMI) ---
 
@@ -36,7 +36,34 @@ kayitlar = veri["kayitlar"]
 
 # Session State kullandığımız için bu fonksiyon artık işlevsizdir
 def kaydet():
-    pass 
+    pass
+
+# --- HATA DÜZELTMESİ İÇİN YARDIMCI FONKSİYON ---
+def get_kitap_sira_no(kitap_adi):
+    """
+    Kitap adından ("Kitap 1", "Kitap 34" vb.) 
+    sıralama için sayısal bir değer çıkarmaya çalışır.
+    Formatı bozuksa veya kitap değilse 999 döndürür.
+    """
+    # Önce string mi diye kontrol et
+    if not isinstance(kitap_adi, str):
+        return 999
+
+    # Değer "Kitap X" formatında mı diye bak
+    if kitap_adi.startswith("Kitap "):
+        try:
+            parcalar = kitap_adi.split(' ')
+            # parcalar[1]'in sayı olup olmadığını kontrol et
+            if len(parcalar) > 1 and parcalar[1].isdigit():
+                return int(parcalar[1])
+        except (ValueError, IndexError):
+            # Beklenmedik bir durum olursa (örn: "Kitap ")
+            return 999
+            
+    # Eğer "Kitap " ile başlamıyorsa ("YOK", "TAMAM", "Türkçe Kitap" vb.)
+    return 999
+# --- DÜZELTME SONU ---
+
 
 st.title("📚 Kitap Dağıtım Sistemi (Gelişmiş)")
 st.caption("Haftalık dönüşümlü kitap takibi, öğrenci ve kitap yönetimi dahil")
@@ -176,10 +203,11 @@ elif secim == "Dağıtım İşlemleri":
                 
             df_sonuc = pd.DataFrame(dagitim_gosterim, columns=[f"Kitap", "Alan Öğrenci"])
             
+            # --- BAŞLANGIÇ: HATA DÜZELTMESİ UYGULANDI ---
             # Kitap isimlerini "Kitap X" formatından alıp sayısal olarak sıralama için geçici sütun oluştur
-            df_sonuc['Sıra'] = df_sonuc["Kitap"].apply(
-                lambda x: int(x.split(' ')[1]) if "Kitap" in x else 999
-            )
+            # Güvenli fonksiyon (get_kitap_sira_no) kullanıldı.
+            df_sonuc['Sıra'] = df_sonuc["Kitap"].apply(get_kitap_sira_no)
+            # --- SON: HATA DÜZELTMESİ UYGULANDI ---
             
             # Kitap numarasına göre sırala (Kitap 1'den başlasın)
             df_sonuc = df_sonuc.sort_values(by='Sıra', ascending=True).drop(columns=['Sıra'])
