@@ -4,11 +4,12 @@ import random
 import os
 import pandas as pd
 
-# --- Dosya Sabiti ---
+# --- Dosya Sabiti ve Başlangıç Ayarları ---
 DATA_FILE = "kitap_dagitim_veri.json"
 MAX_KITAP_SAYISI = 34 # Başlangıçta 34 öğrenci/kitap varsayımı
 
-# --- Veri Yükleme ve Başlangıç Ayarları ---
+# --- Veri Yükleme ---
+# Bu blok, uygulamanın her başlangıcında veya yeniden çalışmasında (rerun) çalışır
 if os.path.exists(DATA_FILE):
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -17,7 +18,7 @@ if os.path.exists(DATA_FILE):
         st.error("Veri dosyası (JSON) bozuk. Lütfen dosyayı silin ve tekrar deneyin.")
         st.stop()
 else:
-    # Başlangıç verisi
+    # Başlangıç verisi (JSON dosyası yoksa)
     veri = {
         "ogrenciler": [
             "Ahmet Yılmaz", "Ayşe Demir", "Mehmet Korkmaz", "Elif Kaya", "Mustafa Çetin",
@@ -33,6 +34,7 @@ else:
     }
     veri["kayitlar"] = {ogr: [] for ogr in veri["ogrenciler"]}
 
+# Veri setlerini global değişkenlere atama
 ogrenciler = veri["ogrenciler"]
 kitaplar = veri["kitaplar"]
 kayitlar = veri["kayitlar"]
@@ -45,7 +47,7 @@ def kaydet():
 st.title("📚 Kitap Dağıtım Sistemi (Gelişmiş)")
 st.caption("Haftalık dönüşümlü kitap takibi, öğrenci ve kitap yönetimi dahil")
 
-# --- Öğrenci ve Kitap Yönetimi (Sidebar) ---
+# --- Yönetim Paneli (Sidebar) ---
 st.sidebar.header("⚙️ Yönetim Paneli")
 secim = st.sidebar.radio("Yönetim Seçeneği:", ["Dağıtım İşlemleri", "Öğrenciler", "Kitaplar"])
 
@@ -65,10 +67,9 @@ if secim == "Öğrenciler":
             st.experimental_rerun()
         else:
             st.warning("Bu isim zaten listede.")
+    st.markdown("---")
+    # Silme/Değiştirme kısımları kod fazlalığı olmaması için basitleştirilmiştir.
     
-    # Silme ve Değiştirme kısımları kod fazlalığı olmaması için çıkarılmıştır.
-    # Kullanıcı isterse bu kısımları yeniden ekleyebilir.
-
 # --- Kitap Yönetimi ---
 elif secim == "Kitaplar":
     st.header("📘 Kitap Yönetimi")
@@ -83,28 +84,26 @@ elif secim == "Kitaplar":
             st.experimental_rerun()
         else:
             st.warning("Bu kitap zaten var.")
-    
-    # Silme ve Değiştirme kısımları kod fazlalığı olmaması için çıkarılmıştır.
+    st.markdown("---")
+    # Silme/Değiştirme kısımları basitleştirilmiştir.
 
-# --- Dağıtım İşlemleri ---
+# --- Dağıtım İşlemleri (Ana Modül) ---
 elif secim == "Dağıtım İşlemleri":
     st.header("📅 Haftalık Kitap Dağıtımı")
 
     # Kontrol: Kitap ve Öğrenci sayısı eşit olmalı
     if len(ogrenciler) != len(kitaplar) or len(ogrenciler) < 1:
-        st.error(f"Öğrenci sayısı ({len(ogrenciler)}) ve Kitap sayısı ({len(kitaplar)}) eşit olmalıdır!")
+        st.error(f"Öğrenci sayısı ({len(ogrenciler)}) ve Kitap sayısı ({len(kitaplar)}) eşit olmalıdır! Lütfen yönetim panelinden düzeltin.")
         st.stop()
 
-    # Kontrol: Bir öğrencinin aldığı en fazla kitap sayısını bul
+    # Hafta Numarasını Belirleme (En Uzun Öğrenci Kayıt Listesine Göre)
     max_alınan = max((len(kayitlar[o]) for o in ogrenciler), default=0)
-    
-    # Hafta numarasını tüm öğrencilerin aldığı maksimum kitap sayısına göre belirle (Doğru Hafta Takibi)
     hafta = 1 + max_alınan 
     
-    # Döngü Bitti mi?
+    # Döngü Tamamlandı Uyarısı
     if hafta > len(kitaplar):
-        st.success(f"Tebrikler! {len(kitaplar)} haftalık tüm kitap döngüsü tamamlanmıştır.")
-        hafta = len(kitaplar) # Son hafta gösterimi için
+        st.success(f"Tebrikler! {len(kitaplar)} haftalık tüm kitap döngüsü tamamlanmıştır. Yeni dönem için sıfırlama yapabilirsiniz.")
+        hafta = len(kitaplar) 
         
     st.subheader(f"📖 {hafta}. Hafta Dağıtımı ({len(kitaplar)} kitap / {len(ogrenciler)} öğrenci)")
 
@@ -112,10 +111,8 @@ elif secim == "Dağıtım İşlemleri":
     yok_ogrenciler = st.multiselect("Bu hafta gelmeyen öğrenciler (Devamsız):", ogrenciler)
     getirmeyenler = st.multiselect("Kitabını getirmeyen öğrenciler:", [o for o in ogrenciler if o not in yok_ogrenciler])
     
-    # Yeni kitap almaya uygun olanlar
+    # Yeni kitap almaya uygun olanlar ve pasif olanları ayırma
     aktif_ogrenciler = [o for o in ogrenciler if o not in yok_ogrenciler + getirmeyenler]
-    
-    # Yeni kitap alamayacak olanlar (Boşluk/YOK işareti alacaklar)
     pasif_ogrenciler = [o for o in ogrenciler if o not in aktif_ogrenciler]
 
     col1, col2 = st.columns(2)
@@ -129,15 +126,15 @@ elif secim == "Dağıtım İşlemleri":
         if hafta > len(kitaplar):
             st.warning("Dağıtım döngüsü tamamlanmıştır.")
         else:
-            # --- 1. Kitap Havuzu ve Ön Hazırlık ---
+            # --- 1. Kitap Havuzu Hazırlığı ---
             mevcut_kitaplar_havuzu = kitaplar[:] 
-            random.shuffle(mevcut_kitaplar_havuzu) # Kitapların dağıtım sırasını karıştır
+            random.shuffle(mevcut_kitaplar_havuzu) # Kitapların dağıtım sırasını rastgele karıştır (SÜRPRİZ)
             
             haftalik_dagitim_sonucu = {}
             
             # --- 2. Pasif Öğrencilerin Kaydını Güncelle (BOŞLUK/YOK İŞARETİ) ---
             for ogr in pasif_ogrenciler:
-                # Kayıtlar geride kaldıysa, o haftaya kadar 'YOK' ekle
+                # Önceki haftalarda geri kalmışsa 'YOK' ile doldur
                 while len(kayitlar[ogr]) < max_alınan:
                     kayitlar[ogr].append("YOK")
 
@@ -151,7 +148,7 @@ elif secim == "Dağıtım İşlemleri":
 
             # --- 3. Aktif Öğrencilere Kitap Dağıtımı (Benzersiz ve Rastgele) ---
             
-            # Aktif öğrencileri en az kitap alandan başlat
+            # Aktif öğrencileri en az kitap alandan başlat (Adil dağıtım önceliği)
             aktif_ogrenciler.sort(key=lambda o: len(kayitlar[o]))
 
             for ogr in aktif_ogrenciler:
@@ -161,41 +158,37 @@ elif secim == "Dağıtım İşlemleri":
                 alinabilir = [k for k in mevcut_kitaplar_havuzu if k not in oncekiler]
                 
                 if not alinabilir:
-                    # Tüm kitapları okumuş ve alabileceği kitap kalmamış
                     kayitlar[ogr].append("TAMAM") 
                     haftalik_dagitim_sonucu[f"TAMAM - Kitap kalmadı"] = ogr
                     continue
                 
-                # Rastgele birini seç (SÜRPRİZLİ DAĞITIM)
+                # Rastgele birini seç
                 secilen = random.choice(alinabilir)
                 
-                # Seçimi kaydet
+                # Kayıtları güncelle
                 haftalik_dagitim_sonucu[secilen] = ogr
                 kayitlar[ogr].append(secilen)
-                mevcut_kitaplar_havuzu.remove(secilen) # Kitabı havuzdan çıkar (Bu hafta bir daha dağıtılamaz)
+                mevcut_kitaplar_havuzu.remove(secilen) # Kitabı havuzdan çıkar (Benzersizlik garantisi)
 
-            # --- 4. Sonuçları Göster ve Kaydet (Kitap 1'den Başlayarak Sıralı Görüntü) ---
+            # --- 4. Sonuçları Göster (Kitap 1'den Başlayarak Sıralı Çıktı) ---
             
             dagitim_gosterim = []
             for kitap, ogr in haftalik_dagitim_sonucu.items():
-                dagitim_gosterim.append([kitap, ogr]) # Kitap, Öğrenci sırasıyla ekle
+                dagitim_gosterim.append([kitap, ogr]) 
                 
             # Pasif öğrencileri de ekle
             for ogr in pasif_ogrenciler:
                 dagitim_gosterim.append(["YOK", ogr]) 
                 
-            df_sonuc = pd.DataFrame(dagitim_gosterim, columns=[f"{hafta}. Hafta Kitabı", "Alan Öğrenci"])
+            df_sonuc = pd.DataFrame(dagitim_gosterim, columns=[f"Kitap", "Alan Öğrenci"])
             
             # Kitap isimlerini "Kitap X" formatından alıp sayısal olarak sıralama için geçici sütun oluştur
-            df_sonuc['Sıra'] = df_sonuc[f"{hafta}. Hafta Kitabı"].apply(
+            df_sonuc['Sıra'] = df_sonuc["Kitap"].apply(
                 lambda x: int(x.split(' ')[1]) if "Kitap" in x else 999
             )
             
             # Kitap numarasına göre sırala (Kitap 1'den başlasın)
             df_sonuc = df_sonuc.sort_values(by='Sıra', ascending=True).drop(columns=['Sıra'])
-            
-            # Sütun başlıklarını sadeleştir ve tabloyu göster
-            df_sonuc.columns = ["Kitap", "Alan Öğrenci"]
             
             st.success("✅ Dağıtım tamamlandı! Sonuçlar Kitap 1'den başlayarak sıralanmıştır.")
             st.dataframe(df_sonuc.set_index("Kitap")) 
@@ -204,7 +197,7 @@ elif secim == "Dağıtım İşlemleri":
             st.experimental_rerun()
             
     if geri_al_buton:
-        # Geri alma işlemini tüm öğrencilerin son kaydını silerek yap
+        # Geri alma işlemini (son haftanın kaydını silme)
         silinecek_hafta = max_alınan
         
         if silinecek_hafta <= 0:
@@ -233,14 +226,25 @@ elif secim == "Dağıtım İşlemleri":
         
     st.markdown("---")
     st.subheader("⚠️ Tüm Verileri Sıfırla")
+    st.warning("Bu işlem, tüm dağıtım kayıtlarını, öğrenci/kitap geçmişini ve veri dosyasını kalıcı olarak siler.")
+    
     col1, col2 = st.columns([1, 2])
     with col1:
-        sifirla_buton = st.button("🗑️ TÜM VERİYİ SIFIRLA")
+        sifirla_buton = st.button("🗑️ TÜM VERİYİ VE DOSYAYI SIFIRLA")
     with col2:
-        onay = st.checkbox("Emin misiniz? Öğrenci ve kitap geçmişi silinir!")
+        onay = st.checkbox("Emin misiniz? Bu işlem geri alınamaz!")
 
     if sifirla_buton and onay:
-        veri["kayitlar"] = {ogr: [] for ogr in ogrenciler}
-        kaydet()
-        st.success("Tüm dağıtım kayıtları sıfırlandı.")
+        # JSON dosyasını silme işlemi
+        if os.path.exists(DATA_FILE):
+            try:
+                os.remove(DATA_FILE)
+                st.success(f"Tüm dağıtım kayıtları ve veri dosyası ('{DATA_FILE}') başarıyla silindi.")
+            except Exception as e:
+                st.error(f"Dosya silinirken bir hata oluştu: {e}")
+                
+        else:
+            st.warning(f"Veri dosyası ('{DATA_FILE}') zaten bulunamadı.")
+            
+        # Programı yeniden başlat (veri sıfırlanmış olarak tekrar yüklensin)
         st.experimental_rerun()
